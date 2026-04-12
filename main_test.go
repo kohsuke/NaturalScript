@@ -78,13 +78,13 @@ func TestDecodeInvalidInput(t *testing.T) {
 
 func TestParseWithShebangCapturedPromptAndGeneratedCode(t *testing.T) {
 	prompt := "generate a script"
-	generated := "#!/bin/sh\necho done"
+	generated := "echo first" + Separator + "echo second"
 
 	content, _ := Print(Script{
 		Shebang:        "#!/usr/bin/env naturalscript",
 		Prompt:         prompt,
 		CapturedPrompt: prompt,
-		GeneratedCode:  "echo first" + Separator + "echo second",
+		GeneratedCode:  generated,
 	})
 
 	s := Parse(content)
