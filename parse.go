@@ -30,11 +30,12 @@ func Parse(content string) Script {
 			if err == nil {
 				s.CapturedPrompt = strings.TrimSpace(string(captured))
 			}
+			// if the decode fails, say due to corruption, then  leave it empty to trigger the regeneration
 		}
 	}
 
 	if len(parts) >= 3 {
-		s.GeneratedCode = strings.TrimSpace(strings.Join(parts[2:], Separator))
+		s.GeneratedCode = strings.Join(parts[2:], Separator)
 	}
 
 	return s

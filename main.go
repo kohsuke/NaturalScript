@@ -4,19 +4,20 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"genscript/agents"
 )
 
 func main() {
-	if len(os.Args) < 1 {
-		fmt.Println("Usage: #!/bin/genscript")
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: genscript <script-path> [script-args...]")
 		os.Exit(1)
 	}
 
-	scriptPath := os.Args[0]
-	args := os.Args[1:]
+	scriptPath := os.Args[1]
+	args := os.Args[2:]
 
 	content, err := os.ReadFile(scriptPath)
 	if err != nil {
@@ -41,7 +42,7 @@ func main() {
 
 		a := selectAgent()
 
-		fullPrompt := prompt(script, outPath)
+		fullPrompt := prompt(script, outPath, args)
 
 		err = a.Run(fullPrompt)
 		if err != nil {
@@ -61,16 +62,21 @@ func main() {
 		}
 
 		script.GeneratedCode = newCode
+		script.CapturedPrompt = script.Prompt
 
-		fullFile, err := Print(script)
+		if script.Shebang == "" {
+			script.Shebang = "#!" + os.Args[0]
+		}
+
+		content, err := Print(script)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error serializing script: %v\n", err)
 			os.Exit(1)
 		}
 
-		err = os.WriteFile(scriptPath, []byte(fullFile), 0755)
+		err = atomicWrite(scriptPath, content)
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Error updating script file: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "Error serializing script: %v\n", err)
 			os.Exit(1)
 		}
 	} else {
@@ -84,7 +90,42 @@ func main() {
 	}
 }
 
-func prompt(script Script, outPath string) string {
+func atomicWrite(scriptPath string, contents string) error {
+	// Write to a temporary file in the same directory as scriptPath
+	scriptDir := "."
+	if dir := strings.TrimSuffix(scriptPath, "/"+filepath.Base(scriptPath)); dir != "" {
+		scriptDir = dir
+	}
+	tmpFile, err := os.CreateTemp(scriptDir, "genscript-tmp-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
+
+	defer tmpFile.Close()
+
+	_, err = tmpFile.Write([]byte(contents))
+	if err != nil {
+		return err
+	}
+	err = tmpFile.Chmod(0755)
+	if err != nil {
+		return err
+	}
+	err = tmpFile.Close()
+	if err != nil {
+		return err
+	}
+	err = os.Rename(tmpPath, scriptPath)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func prompt(script Script, outPath string, args []string) string {
 	var prompt string
 
 	if script.GeneratedCode == "" {
@@ -124,13 +165,12 @@ When we are done, please use that knowledge to write out the script to %s, so th
 can be performed without you.
 
 For this session, the "arguments" I'm invoking this script with are: %s
-`, outPath, formatArguments())
+`, outPath, formatArguments(args))
 
 	return prompt
 }
 
-func formatArguments() string {
-	args := os.Args[1:]
+func formatArguments(args []string) string {
 	quoted := make([]string, len(args))
 	for i, arg := range args {
 		quoted[i] = "'" + arg + "'"
