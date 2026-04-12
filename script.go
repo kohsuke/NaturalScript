@@ -10,7 +10,7 @@ type Script struct {
 	GeneratedCode string
 }
 
-const Separator = "\n-=-=-=-=-=-=-=-=\n"
+const Separator = "\n-=-=-=-=-=-=-=-= GENERATED CODE BELOW: DO NOT MODIFY -=-=-=-=-=-=-=-=\n"
 
 func (script Script) ShouldRegenerate() bool {
 	if script.GeneratedCode == "" {
