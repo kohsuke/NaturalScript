@@ -15,8 +15,7 @@ func Print(s Script) (string, error) {
 	if s.Shebang == "" {
 		executable, err := os.Executable()
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Error obtaining executable path: %v\n", err)
-			os.Exit(1)
+			return "", fmt.Errorf("obtain executable path: %w", err)
 		}
 		s.Shebang = "#!" + executable
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,9 +13,16 @@ import (
 )
 
 func main() {
+	exitCode, err := run()
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+	}
+	os.Exit(exitCode)
+}
+
+func run() (int, error) {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: genscript <script-path> [script-args...]")
-		os.Exit(1)
+		return 1, fmt.Errorf("usage: genscript <script-path> [script-args...]")
 	}
 
 	scriptPath := os.Args[1]
@@ -22,88 +30,70 @@ func main() {
 
 	content, err := os.ReadFile(scriptPath)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error reading script: %v\n", err)
-		os.Exit(1)
+		return 1, fmt.Errorf("read script: %w", err)
 	}
 
 	script := Parse(string(content))
 
 	if script.ShouldRegenerate() {
 		fmt.Println("Triggering the agent to generate the script...")
+
 		outPath, err := makeTmpFile()
-		err = os.Remove(outPath)
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to remove: %v\n", err)
-			os.Exit(1)
+			return 1, fmt.Errorf("create temporary output file: %w", err)
 		}
+		defer os.Remove(outPath)
 
 		a := selectAgent()
-
 		fullPrompt := prompt(script, outPath, args)
-
-		err = a.Run(fullPrompt)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Agent error: %v\n", err)
-			os.Exit(1)
+		if err := a.Run(fullPrompt); err != nil {
+			return 1, fmt.Errorf("agent error: %w", err)
 		}
 
 		newCodeBytes, err := os.ReadFile(outPath)
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Error reading generated script from %s: %v\n", outPath, err)
-			os.Exit(1)
+			return 1, fmt.Errorf("read generated script from %s: %w", outPath, err)
 		}
 		newCode := string(newCodeBytes)
 		if newCode == "" {
-			fmt.Println("Agent did not produce a script. Exiting.")
-			os.Exit(1)
-		}
-		err = os.Remove(outPath)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to remove: %v\n", err)
-			os.Exit(1)
+			return 1, errors.New("agent did not produce a script")
 		}
 
 		script.GeneratedCode = newCode
 		script.CapturedPrompt = script.Prompt
 
-		content, err := Print(script)
+		serializedScript, err := Print(script)
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Error serializing script: %v\n", err)
-			os.Exit(1)
+			return 1, fmt.Errorf("serialize script: %w", err)
 		}
-
-		err = atomicWrite(scriptPath, content)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Error serializing script: %v\n", err)
-			os.Exit(1)
+		if err := atomicWrite(scriptPath, serializedScript); err != nil {
+			return 1, fmt.Errorf("write script: %w", err)
 		}
-	} else {
-		if err := Execute(script, args); err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				os.Exit(exitErr.ExitCode())
-			}
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to run the script: %v\n", err)
-			os.Exit(1)
-		}
+		return 0, nil
 	}
+
+	if err := Execute(script, args); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return exitErr.ExitCode(), nil
+		}
+		return 1, fmt.Errorf("run generated script: %w", err)
+	}
+	return 0, nil
 }
 
 func makeTmpFile() (string, error) {
-	outFile, err := os.CreateTemp(".", "genscript-output-*.txt")
+	outFile, err := os.CreateTemp("", "genscript-output-*.txt")
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error creating temporary output file: %v\n", err)
-		os.Exit(1)
+		return "", err
 	}
 	outPath := outFile.Name()
 	if err := outFile.Close(); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error preparing temporary output file: %v\n", err)
-		os.Exit(1)
+		return "", err
 	}
-	return outPath, err
+	return outPath, nil
 }
 
 func atomicWrite(scriptPath string, contents string) error {
-	// Write to a temporary file in the same directory as scriptPath
 	scriptDir := filepath.Dir(scriptPath)
 	tmpFile, err := os.CreateTemp(scriptDir, "genscript-tmp-*.tmp")
 	if err != nil {
@@ -124,12 +114,7 @@ func atomicWrite(scriptPath string, contents string) error {
 	if err != nil {
 		return err
 	}
-	err = os.Rename(tmpPath, scriptPath)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return os.Rename(tmpPath, scriptPath)
 }
 
 func prompt(script Script, outPath string, args []string) string {
@@ -137,7 +122,7 @@ func prompt(script Script, outPath string, args []string) string {
 
 	if script.GeneratedCode == "" {
 		prompt = fmt.Sprintf(`
-I'd like to turn the following repeatable task into a script: 
+I'd like to turn the following repeatable task into a script:
 ====
 %s
 ====
@@ -145,7 +130,7 @@ I'd like to turn the following repeatable task into a script:
 `, script.Prompt)
 	} else {
 		prompt = fmt.Sprintf(`
-I wanted to turn the following repeatable task into a script: 
+I wanted to turn the following repeatable task into a script:
 ====
 %s
 ====
@@ -160,19 +145,19 @@ Now, my task definition changed into the following:
 %s
 ====
 
-I'd like you to produce a revised script that reflects this change. 
+I'd like you to produce a revised script that reflects this change.
 `, script.CapturedPrompt, script.GeneratedCode, script.Prompt)
 	}
 
-	// core prompt
 	prompt += fmt.Sprintf(`
 In order to produce the correct script, first I'd like you to be the interpreter.
 Ask me any clarifying questions, and execute the necessary commands directly.
 
-When we are done, please use that knowledge to write out the script to %s, so that the next time this same task
-can be performed without you. Unless I change my mind, assume a shell script.
+When we are done, please use that knowledge to write out the script to %s, so that
+the next time this same task can be performed without you. Unless I change my mind,
+assume a shell script.
 
-Then  ask the user to exit the session.
+Then ask the user to exit the session.
 
 For this session, the "arguments" I'm invoking this script with are: %s
 `, outPath, formatArguments(args))
@@ -185,20 +170,17 @@ func formatArguments(args []string) string {
 	for i, arg := range args {
 		quoted[i] = strconv.Quote(arg)
 	}
-	arguments := "[" + strings.Join(quoted, ", ") + "]"
-	return arguments
+	return "[" + strings.Join(quoted, ", ") + "]"
 }
 
 func selectAgent() agents.Agent {
 	selectedAgent := os.Getenv("GENSCRIPT_AGENT")
-	var a agents.Agent
 	switch selectedAgent {
 	case "opencode":
-		a = agents.NewOpenCodeAgent()
+		return agents.NewOpenCodeAgent()
 	case "claude":
-		a = agents.NewClaudeAgent()
+		return agents.NewClaudeAgent()
 	default:
-		a = agents.NewOpenCodeAgent()
+		return agents.NewOpenCodeAgent()
 	}
-	return a
 }
