@@ -6,8 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"genscript/internal"
-	"genscript/internal/agent"
+	"genscript/agents"
 )
 
 func main() {
@@ -25,7 +24,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	parts, parseErr := internal.Parse(string(content))
+	parts, parseErr := Parse(string(content))
 
 	shouldRecompile := false
 	if parts.GeneratedCode == "" {
@@ -41,24 +40,49 @@ func main() {
 	}
 
 	if shouldRecompile {
+		outFile, err := os.CreateTemp("", "genscript-output-*.txt")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating temporary output file: %v\n", err)
+			os.Exit(1)
+		}
+		outPath := outFile.Name()
+		if err := outFile.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error preparing temporary output file: %v\n", err)
+			os.Exit(1)
+		}
+		defer os.Remove(outPath)
+
 		selectedAgent := os.Getenv("GENSCRIPT_AGENT")
-		var a agent.Agent
+		var a agents.Agent
 		switch selectedAgent {
 		case "opencode":
-			a = agent.NewOpenCodeAgent()
+			a = agents.NewOpenCodeAgent()
 		case "claude":
-			a = agent.NewClaudeAgent()
+			a = agents.NewClaudeAgent()
 		default:
-			a = agent.NewOpenCodeAgent()
+			a = agents.NewOpenCodeAgent()
 		}
 
+		fullPrompt := fmt.Sprintf(
+			"Current instruction:\n%s\n\nPrevious generated script (if any):\n%s\n\nGenerate an updated executable script that satisfies the current instruction. Write only the script source code to this exact file path, overwriting it if needed:\n%s\n\nWhen done writing the file, exit.",
+			parts.Prompt,
+			parts.GeneratedCode,
+			outPath,
+		)
+
 		fmt.Println("Prompt change detected. Invoking agent...")
-		newCode, err := a.Run(parts.Prompt, parts.GeneratedCode)
+		err = a.Run(fullPrompt)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Agent error: %v\n", err)
 			os.Exit(1)
 		}
 
+		newCodeBytes, err := os.ReadFile(outPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading generated script from %s: %v\n", outPath, err)
+			os.Exit(1)
+		}
+		newCode := strings.TrimSpace(string(newCodeBytes))
 		if newCode == "" {
 			fmt.Println("Agent did not produce a script. Exiting.")
 			os.Exit(1)
@@ -76,7 +100,7 @@ func main() {
 			parts.Shebang = "#!" + exe
 		}
 
-		fullFile, err := internal.Print(parts)
+		fullFile, err := Print(parts)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error serializing script: %v\n", err)
 			os.Exit(1)
@@ -89,7 +113,7 @@ func main() {
 		}
 	}
 
-	if err := internal.Execute(parts, args); err != nil {
+	if err := Execute(parts, args); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			if code := exitErr.ExitCode(); code >= 0 {
 				os.Exit(code)
