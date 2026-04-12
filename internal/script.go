@@ -1,7 +1,8 @@
 package internal
 
-type ScriptParts struct {
-    // the current prompt, which might have been modified by the user since the last generation
+type Script struct {
+	Shebang        string
+	// the current prompt, which might have been modified by the user since the last generation
 	Prompt         string
 	// the frozen prompt that was used to generate GeneratedCode
 	CapturedPrompt string

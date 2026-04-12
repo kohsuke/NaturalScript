@@ -3,11 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	"genscript/internal"
 	"genscript/internal/agent"
-	"genscript/internal/codec"
 )
 
 func main() {
@@ -25,13 +25,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	parts := internal.Parse(string(content))
-	
+	parts, parseErr := internal.Parse(string(content))
+
 	shouldRecompile := false
 	if parts.GeneratedCode == "" {
 		shouldRecompile = true
+	} else if parseErr != nil {
+		shouldRecompile = true
 	} else if strings.TrimSpace(parts.CapturedPrompt) != parts.Prompt {
 		shouldRecompile = true
+	}
+
+	if parseErr != nil {
+		fmt.Fprintf(os.Stderr, "Warning: %v; triggering regeneration\n", parseErr)
 	}
 
 	if shouldRecompile {
@@ -58,29 +64,37 @@ func main() {
 			os.Exit(1)
 		}
 
-		compressedPrompt, err := codec.Encode([]byte(parts.Prompt))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error encoding prompt: %v\n", err)
-			os.Exit(1)
+		parts.GeneratedCode = newCode
+
+		// Infer shebang from current executable if missing
+		if parts.Shebang == "" {
+			exe, err := os.Executable()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error finding executable path: %v\n", err)
+				os.Exit(1)
+			}
+			parts.Shebang = "#!" + exe
 		}
 
-		fullFile := fmt.Sprintf("#!/bin/genscript\n%s\n\n%s\n%s\n%s\n%s", 
-			parts.Prompt, 
-			internal.Separator, 
-			compressedPrompt, 
-			internal.Separator, 
-			newCode)
+		fullFile, err := internal.Print(parts)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error serializing script: %v\n", err)
+			os.Exit(1)
+		}
 
 		err = os.WriteFile(scriptPath, []byte(fullFile), 0755)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error updating script file: %v\n", err)
 			os.Exit(1)
 		}
-		
-		parts.GeneratedCode = newCode
 	}
 
-	if err := internal.Execute(parts.GeneratedCode, args); err != nil {
+	if err := internal.Execute(parts, args); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			if code := exitErr.ExitCode(); code >= 0 {
+				os.Exit(code)
+			}
+		}
 		fmt.Fprintf(os.Stderr, "Execution error: %v\n", err)
 		os.Exit(1)
 	}
