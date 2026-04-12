@@ -30,3 +30,14 @@ involving agents.
 If the first prompt changes, the agent will be triggered again to update the script.
 
 # Install
+
+## Prebuilt binaries (GitHub Releases)
+
+Download the archive for your platform from the repository's
+**Releases** page, then place `naturalscript` on your `PATH`.
+
+## Go install
+
+```bash
+go install github.com/kohsuke/NaturalScript@latest
+```
