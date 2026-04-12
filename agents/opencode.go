@@ -12,7 +12,18 @@ func NewOpenCodeAgent() *OpenCodeAgent {
 }
 
 func (a *OpenCodeAgent) Run(prompt string) error {
-	cmd := exec.Command("opencode", prompt)
+	// there appears to be no equivalent of claude -p ...
+	// programmatic prompt specification requires "run PROMPT", then we can use -c to launch an interactive session
+	cmd := exec.Command("opencode", "run", prompt)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+
+	if err != nil {
+	}
+
+	cmd = exec.Command("opencode", "-c")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

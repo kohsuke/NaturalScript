@@ -21,5 +21,5 @@ func Print(s Script) (string, error) {
 		s.Shebang = "#!" + executable
 	}
 
-	return fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s\n", s.Shebang, s.Prompt, Separator, compressedPrompt, Separator, s.GeneratedCode), nil
+	return fmt.Sprintf("%s\n%s%s%s%s%s", s.Shebang, s.Prompt, Separator, compressedPrompt, Separator, s.GeneratedCode), nil
 }

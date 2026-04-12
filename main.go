@@ -29,17 +29,13 @@ func main() {
 	script := Parse(string(content))
 
 	if script.ShouldRegenerate() {
-		outFile, err := os.CreateTemp("", "genscript-output-*.txt")
+		fmt.Println("Triggering the agent to generate the script...")
+		outPath, err := makeTmpFile()
+		err = os.Remove(outPath)
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Error creating temporary output file: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to remove: %v\n", err)
 			os.Exit(1)
 		}
-		outPath := outFile.Name()
-		if err := outFile.Close(); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Error preparing temporary output file: %v\n", err)
-			os.Exit(1)
-		}
-		defer os.Remove(outPath)
 
 		a := selectAgent()
 
@@ -59,6 +55,11 @@ func main() {
 		newCode := string(newCodeBytes)
 		if newCode == "" {
 			fmt.Println("Agent did not produce a script. Exiting.")
+			os.Exit(1)
+		}
+		err = os.Remove(outPath)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to remove: %v\n", err)
 			os.Exit(1)
 		}
 
@@ -81,10 +82,24 @@ func main() {
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				os.Exit(exitErr.ExitCode())
 			}
-			_, _ = fmt.Fprintf(os.Stderr, "Execution error: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to run the script: %v\n", err)
 			os.Exit(1)
 		}
 	}
+}
+
+func makeTmpFile() (string, error) {
+	outFile, err := os.CreateTemp(".", "genscript-output-*.txt")
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error creating temporary output file: %v\n", err)
+		os.Exit(1)
+	}
+	outPath := outFile.Name()
+	if err := outFile.Close(); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error preparing temporary output file: %v\n", err)
+		os.Exit(1)
+	}
+	return outPath, err
 }
 
 func atomicWrite(scriptPath string, contents string) error {
@@ -149,12 +164,15 @@ I'd like you to produce a revised script that reflects this change.
 `, script.CapturedPrompt, script.GeneratedCode, script.Prompt)
 	}
 
+	// core prompt
 	prompt += fmt.Sprintf(`
 In order to produce the correct script, first I'd like you to be the interpreter.
 Ask me any clarifying questions, and execute the necessary commands directly.
 
 When we are done, please use that knowledge to write out the script to %s, so that the next time this same task
-can be performed without you.
+can be performed without you. Unless I change my mind, assume a shell script.
+
+Then  ask the user to exit the session.
 
 For this session, the "arguments" I'm invoking this script with are: %s
 `, outPath, formatArguments(args))
