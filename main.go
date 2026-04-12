@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"genscript/agents"
@@ -64,10 +65,6 @@ func main() {
 		script.GeneratedCode = newCode
 		script.CapturedPrompt = script.Prompt
 
-		if script.Shebang == "" {
-			script.Shebang = "#!" + os.Args[0]
-		}
-
 		content, err := Print(script)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error serializing script: %v\n", err)
@@ -92,18 +89,13 @@ func main() {
 
 func atomicWrite(scriptPath string, contents string) error {
 	// Write to a temporary file in the same directory as scriptPath
-	scriptDir := "."
-	if dir := strings.TrimSuffix(scriptPath, "/"+filepath.Base(scriptPath)); dir != "" {
-		scriptDir = dir
-	}
+	scriptDir := filepath.Dir(scriptPath)
 	tmpFile, err := os.CreateTemp(scriptDir, "genscript-tmp-*.tmp")
 	if err != nil {
 		return err
 	}
 	tmpPath := tmpFile.Name()
 	defer os.Remove(tmpPath)
-
-	defer tmpFile.Close()
 
 	_, err = tmpFile.Write([]byte(contents))
 	if err != nil {
@@ -173,7 +165,7 @@ For this session, the "arguments" I'm invoking this script with are: %s
 func formatArguments(args []string) string {
 	quoted := make([]string, len(args))
 	for i, arg := range args {
-		quoted[i] = "'" + arg + "'"
+		quoted[i] = strconv.Quote(arg)
 	}
 	arguments := "[" + strings.Join(quoted, ", ") + "]"
 	return arguments
