@@ -12,7 +12,7 @@ func Execute(s Script, args []string) error {
 		return fmt.Errorf("generated script is empty")
 	}
 
-	tmpFile, err := os.CreateTemp("", "genscript-*.sh")
+	tmpFile, err := os.CreateTemp("", "naturalscript-*.sh")
 	if err != nil {
 		return err
 	}

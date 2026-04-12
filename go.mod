@@ -1,3 +1,3 @@
-module genscript
+module naturalscript
 
 go 1.22.2

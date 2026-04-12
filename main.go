@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"genscript/agents"
+	"naturalscript/agents"
 )
 
 func main() {
@@ -22,7 +22,7 @@ func main() {
 
 func run() (int, error) {
 	if len(os.Args) < 2 {
-		return 1, fmt.Errorf("usage: genscript <script-path> [script-args...]")
+		return 1, fmt.Errorf("usage: naturalscript <script-path> [script-args...]")
 	}
 
 	scriptPath := os.Args[1]
@@ -82,7 +82,7 @@ func run() (int, error) {
 }
 
 func makeTmpFile() (string, error) {
-	outFile, err := os.CreateTemp("", "genscript-output-*.txt")
+	outFile, err := os.CreateTemp("", "naturalscript-output-*.txt")
 	if err != nil {
 		return "", err
 	}
@@ -95,7 +95,7 @@ func makeTmpFile() (string, error) {
 
 func atomicWrite(scriptPath string, contents string) error {
 	scriptDir := filepath.Dir(scriptPath)
-	tmpFile, err := os.CreateTemp(scriptDir, "genscript-tmp-*.tmp")
+	tmpFile, err := os.CreateTemp(scriptDir, "naturalscript-tmp-*.tmp")
 	if err != nil {
 		return err
 	}
@@ -174,7 +174,10 @@ func formatArguments(args []string) string {
 }
 
 func selectAgent() agents.Agent {
-	selectedAgent := os.Getenv("GENSCRIPT_AGENT")
+	selectedAgent := os.Getenv("NATURALSCRIPT_AGENT")
+	if selectedAgent == "" {
+		selectedAgent = os.Getenv("GENSCRIPT_AGENT")
+	}
 	switch selectedAgent {
 	case "opencode":
 		return agents.NewOpenCodeAgent()
