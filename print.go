@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"strings"
 )
 
 // Print converts a Script structure back into the file format.
@@ -13,14 +15,12 @@ func Print(s Script) (string, error) {
 
 	shebang := s.Shebang
 	if shebang == "" {
-		shebang = "#!/bin/genscript"
+		executable, err := os.Executable()
+		if err != nil {
+			return "", fmt.Errorf("failed to obtain the executable path: %w", err)
+		}
+		shebang = "#!" + executable
 	}
 
-	return fmt.Sprintf("%s\n%s\n\n%s\n%s\n%s\n%s",
-		shebang,
-		s.Prompt,
-		Separator,
-		compressedPrompt,
-		Separator,
-		s.GeneratedCode), nil
+	return strings.Join([]string{shebang, s.Prompt, compressedPrompt, s.GeneratedCode}, Separator), nil
 }

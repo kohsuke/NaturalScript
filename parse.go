@@ -1,12 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 )
 
 // Parse splits the script file into its constituent parts and decodes the captured prompt.
-func Parse(content string) (Script, error) {
+func Parse(content string) Script {
 	lines := strings.Split(content, "\n")
 	var s Script
 	startIdx := 0
@@ -19,7 +18,7 @@ func Parse(content string) (Script, error) {
 	parts := strings.Split(remainingContent, Separator)
 
 	if len(parts) == 0 {
-		return s, nil
+		return s
 	}
 
 	s.Prompt = strings.TrimSpace(parts[0])
@@ -28,10 +27,9 @@ func Parse(content string) (Script, error) {
 		compressed := strings.TrimSpace(parts[1])
 		if compressed != "" {
 			captured, err := Decode(compressed)
-			if err != nil {
-				return s, fmt.Errorf("failed to decode captured prompt: %w", err)
+			if err == nil {
+				s.CapturedPrompt = strings.TrimSpace(string(captured))
 			}
-			s.CapturedPrompt = string(captured)
 		}
 	}
 
@@ -39,5 +37,5 @@ func Parse(content string) (Script, error) {
 		s.GeneratedCode = strings.TrimSpace(strings.Join(parts[2:], Separator))
 	}
 
-	return s, nil
+	return s
 }

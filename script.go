@@ -11,3 +11,12 @@ type Script struct {
 }
 
 const Separator = "-=-=-=-=-=-=-=-="
+
+func (script Script) ShouldRegenerate() bool {
+	if script.GeneratedCode == "" {
+		return true
+	} else if script.CapturedPrompt != script.Prompt {
+		return true
+	}
+	return false
+}
