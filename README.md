@@ -1,7 +1,7 @@
 # NaturalScript
 
-I find it offputting when people generate scripts with LLM and commit
-the results into Git repositories. Those scripts are verbose and hard to maintain.
+I find it off-putting when people generate scripts with LLMs and commit
+the results to Git repositories. Those scripts are verbose and hard to maintain.
 It's like committing a binary file without the actual source code.
 
 NaturalScript lets you write executable scripts in natural language.
@@ -12,8 +12,8 @@ Say hello world in Italian
 ```
 
 On first run (or when the prompt changes), it launches an interactive coding
-agent, such as Claude Code or OpenCode, to perform the task as if it's the interpreter.
-You get to watch & guide this process.
+agent, such as Claude Code or OpenCode, to perform the task as your interpreter.
+You get to watch and guide this process.
 
 When it's done, the agent will generate the executable scripRt from that session,
 and it gets stored in the same file.
@@ -28,16 +28,17 @@ H4sIAAAAAAAA/wpOrFTISM3JyVcozy/KSVHIzFPwLEnMyUzMAwQAAP//JvwLdRoAAAA=
 echo "Ciao, Mondo!"
 ```
 
-On the future invocations, this generated script will run directly without
-involving agents -- unless the prompt changes, in which case the agent will
-be triggered again.
+On future invocations, this generated script runs directly without
+involving agents -- unless the prompt changes, in which case the agent is
+triggered again.
 
 # Install
 
 Download the archive for your platform from the repository's
 **Releases** page, then place `naturalscript` on your `PATH`.
 
-Alternatively,
+Alternatively:
+
 ```bash
 go install github.com/kohsuke/NaturalScript@latest
 ```
