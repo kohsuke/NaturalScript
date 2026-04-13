@@ -5,32 +5,45 @@ the results to Git repositories. Those scripts are verbose and hard to maintain.
 It's like committing a binary file without the actual source code.
 
 NaturalScript lets you write executable scripts in natural language.
-
-```shell
-#!/bin/naturalscript
-Say hello world in Italian
-```
-
-On first run (or when the prompt changes), it launches an interactive coding
-agent, such as Claude Code or OpenCode, to perform the task as your interpreter.
-You get to watch and guide this process.
-
-When it's done, the agent will generate the executable scripRt from that session,
-and it gets stored in the same file.
+Create a text file and pass it to `naturalscript`:
 
 ```text
-#!/bin/naturalscript
-Say hello world in Italian
--=-=-=-=-=-=-=-= GENERATED CODE BELOW: DO NOT MODIFY -=-=-=-=-=-=-=-=
-H4sIAAAAAAAA/wpOrFTISM3JyVcozy/KSVHIzFPwLEnMyUzMAwQAAP//JvwLdRoAAAA=
--=-=-=-=-=-=-=-= GENERATED CODE BELOW: DO NOT MODIFY -=-=-=-=-=-=-=-=
-#!/bin/bash
-echo "Ciao, Mondo!"
+$ cat check-google
+Test if google.com is up or down.
+If it's down, exit non-zero
+$ naturalscript hello
 ```
 
-On future invocations, this generated script runs directly without
-involving agents -- unless the prompt changes, in which case the agent is
-triggered again.
+It launches an interactive coding agent, such as Claude Code or OpenCode, to execute this "script".
+It'll engage you in a conversation to clarify the requirements.
+
+When it's done, the agent will generate the executable script from that session,
+and it gets written back into the same file.
+
+```text
+#!/bin/bash
+: <<'COMMENTBLOCK_FOR_NATURALSCRIPT'
+Managed by NaturalScript. Edit the prompt below and run `naturalscript path/to/this/file` to regenerate.
+==== NATURALSCRIPT:BEGIN ====
+Test if google.com is up or down.
+If it's down, exit non-zero
+
+==== NATURALSCRIPT:END ====
+H4sIAAAAAAAA/wpJLS5RyExTSM/PT89J1UvOz1XILFYoLVDIL1JIyS/P0+PyTFPILFEvBvN0FFIrMk
+sU8vLzdKtSi/K5AAEAAP//uCSZCD4AAAA=
+
+COMMENTBLOCK_FOR_NATURALSCRIPT
+
+... (generated script follows) ...
+```
+
+Now this generated script can be run without NaturalScript.
+
+To update the script, simply edit the captured prompt section,
+and re-run `naturalscript`. The agent will now try to apply the delta
+between the old and new prompts into the current script.
+
+
 
 # Install
 
