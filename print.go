@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-const metadataInstruction = "Managed by NaturalScript. Edit the prompt below and run `naturalscript path/to/this/file` to regenerate."
+const metadataInstruction = "Managed by NaturalScript. Edit the prompt below and run `naturalscript path/to/this/file` to regenerate. DO NOT MODIFY THE REST"
 
 // Print converts a Script structure back into the file format.
 func Print(s Script) (string, error) {
