@@ -44,7 +44,8 @@ func run() (int, error) {
 		if err != nil {
 			return 1, fmt.Errorf("can't create temporary output file: %w", err)
 		}
-		defer os.Remove(outPath)
+		os.Remove(outPath)       // if a file exists, agent needs to read it first
+		defer os.Remove(outPath) // delete the file the agent will create, too
 
 		a := selectAgent()
 		fullPrompt := prompt(script, outPath, args)
