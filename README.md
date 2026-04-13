@@ -11,6 +11,9 @@ Create a text file and pass it to `naturalscript`:
 $ cat check-google
 Test if google.com is up or down.
 If it's down, exit non-zero
+```
+
+```
 $ naturalscript hello
 ```
 
