@@ -1,7 +1,6 @@
 package main
 
 type Script struct {
-	Shebang string
 	// the current prompt, which might have been modified by the user since the last generation
 	Prompt string
 	// the frozen prompt that was used to generate GeneratedCode
@@ -10,7 +9,8 @@ type Script struct {
 	GeneratedCode string
 }
 
-const Separator = "\n-=-=-=-=-=-=-=-= GENERATED CODE BELOW: DO NOT MODIFY -=-=-=-=-=-=-=-=\n"
+const PromptBeginMarker = "==== NATURALSCRIPT:BEGIN ===="
+const PromptEndMarker = "==== NATURALSCRIPT:END ===="
 
 func (script Script) ShouldRegenerate() bool {
 	if script.GeneratedCode == "" {

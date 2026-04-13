@@ -27,7 +27,7 @@ func TestShouldRegenerate(t *testing.T) {
 			script: Script{
 				Prompt:         "new task",
 				CapturedPrompt: "old task",
-				GeneratedCode:  "echo hi",
+				GeneratedCode:  "#!/bin/sh\necho hi",
 			},
 			want: true,
 		},
@@ -36,7 +36,7 @@ func TestShouldRegenerate(t *testing.T) {
 			script: Script{
 				Prompt:         "task",
 				CapturedPrompt: "task",
-				GeneratedCode:  "echo hi",
+				GeneratedCode:  "#!/bin/sh\necho hi",
 			},
 			want: false,
 		},
@@ -76,30 +76,129 @@ func TestDecodeInvalidInput(t *testing.T) {
 	}
 }
 
-func TestParseWithShebangCapturedPromptAndGeneratedCode(t *testing.T) {
-	prompt := "generate a script"
-	generated := "echo first" + Separator + "echo second"
-
-	content, _ := Print(Script{
-		Shebang:        "#!/usr/bin/env naturalscript",
-		Prompt:         prompt,
-		CapturedPrompt: prompt,
-		GeneratedCode:  generated,
-	})
-
-	s := Parse(content)
-
-	if s.Shebang != "#!/usr/bin/env naturalscript" {
-		t.Fatalf("Shebang = %q, want %q", s.Shebang, "#!/usr/bin/env naturalscript")
+func TestPrintAndParsePythonEnvelopeRoundTrip(t *testing.T) {
+	in := Script{
+		Prompt:        "Say hello in Italian",
+		GeneratedCode: "#!/usr/bin/env python3\nprint('Ciao, mondo!')",
 	}
-	if s.Prompt != prompt {
-		t.Fatalf("Prompt = %q, want %q", s.Prompt, prompt)
+
+	printed, err := Print(in)
+	if err != nil {
+		t.Fatalf("Print() error = %v", err)
 	}
-	if s.CapturedPrompt != prompt {
-		t.Fatalf("CapturedPrompt = %q, want %q", s.CapturedPrompt, prompt)
+	if !strings.Contains(printed, "'''") {
+		t.Fatalf("expected python triple-quote envelope")
 	}
-	if s.GeneratedCode != generated {
-		t.Fatalf("GeneratedCode = %q, want %q", s.GeneratedCode, generated)
+	if !strings.Contains(printed, PromptBeginMarker) {
+		t.Fatalf("expected metadata begin marker")
+	}
+
+	out, _ := Parse(printed)
+	if out.Prompt != in.Prompt {
+		t.Fatalf("Prompt = %q, want %q", out.Prompt, in.Prompt)
+	}
+	if out.CapturedPrompt != in.Prompt {
+		t.Fatalf("CapturedPrompt = %q, want %q", out.CapturedPrompt, in.Prompt)
+	}
+	if out.GeneratedCode != in.GeneratedCode {
+		t.Fatalf("GeneratedCode = %q, want %q", out.GeneratedCode, in.GeneratedCode)
+	}
+}
+
+func TestPrintAndParseShellHeredocEnvelopeRoundTrip(t *testing.T) {
+	in := Script{
+		Prompt:        "echo from shell",
+		GeneratedCode: "#!/usr/bin/env bash\necho hello",
+	}
+
+	printed, err := Print(in)
+	if err != nil {
+		t.Fatalf("Print() error = %v", err)
+	}
+	if !strings.Contains(printed, ": <<'COMMENTBLOCK_FOR_NATURALSCRIPT'") {
+		t.Fatalf("expected shell heredoc envelope")
+	}
+
+	out, _ := Parse(printed)
+	if out.Prompt != in.Prompt {
+		t.Fatalf("Prompt = %q, want %q", out.Prompt, in.Prompt)
+	}
+	if out.CapturedPrompt != in.Prompt {
+		t.Fatalf("CapturedPrompt = %q, want %q", out.CapturedPrompt, in.Prompt)
+	}
+	if out.GeneratedCode != in.GeneratedCode {
+		t.Fatalf("GeneratedCode = %q, want %q", out.GeneratedCode, in.GeneratedCode)
+	}
+}
+
+func TestParseLineCommentFallbackEnvelope(t *testing.T) {
+	compressed, err := Encode([]byte("task2"))
+	if err != nil {
+		t.Fatalf("Encode() error = %v", err)
+	}
+	content := strings.Join([]string{
+		"#!/usr/bin/env ruby",
+		"# " + metadataInstruction,
+		"# " + PromptBeginMarker,
+		"# task",
+		"# " + PromptEndMarker,
+		"# " + compressed,
+		"# ", // end of base64 block
+		"# ", // end of multiline comment
+		"puts 'hello'",
+	}, "\n")
+
+	s, err := Parse(content)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if s.Prompt != "task" {
+		t.Fatalf("Prompt = %q, want %q", s.Prompt, "task")
+	}
+	if s.CapturedPrompt != "task2" {
+		t.Fatalf("CapturedPrompt = %q, want %q", s.CapturedPrompt, "task2")
+	}
+	if s.GeneratedCode != "#!/usr/bin/env ruby\nputs 'hello'" {
+		t.Fatalf("GeneratedCode = %q", s.GeneratedCode)
+	}
+}
+
+func TestParseBash(t *testing.T) {
+	compressed, err := Encode([]byte("task2"))
+	if err != nil {
+		t.Fatalf("Encode() error = %v", err)
+	}
+	content := strings.Join([]string{
+		"#!/usr/bin/bash",
+		": <<EOF",
+		"warning warning",
+		PromptBeginMarker,
+		"task",
+		PromptEndMarker,
+		compressed,
+		"",    // end of base64 block
+		"EOF", // end of multiline comment
+		"echo hello",
+	}, "\n")
+
+	s, err := Parse(content)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if s.Prompt != "task" {
+		t.Fatalf("Prompt = %q, want %q", s.Prompt, "task")
+	}
+	if s.CapturedPrompt != "task2" {
+		t.Fatalf("CapturedPrompt = %q, want %q", s.CapturedPrompt, "task2")
+	}
+	if s.GeneratedCode != "#!/usr/bin/bash\necho hello" {
+		t.Fatalf("GeneratedCode = %q", s.GeneratedCode)
+	}
+}
+
+func TestPrintWithoutShebangFails(t *testing.T) {
+	if _, err := Print(Script{Prompt: "task", GeneratedCode: "echo ok"}); err == nil {
+		t.Fatalf("Print() expected error when generated code lacks shebang")
 	}
 }
 
@@ -117,7 +216,7 @@ func TestPromptForRevision(t *testing.T) {
 	s := Script{
 		Prompt:         "new task",
 		CapturedPrompt: "old task",
-		GeneratedCode:  "echo old",
+		GeneratedCode:  "#!/bin/sh\necho old",
 	}
 	msg := prompt(s, "/tmp/out.sh", nil)
 
@@ -133,7 +232,7 @@ func TestPromptForRevision(t *testing.T) {
 }
 
 func TestMakeTmpFileCreatesAFile(t *testing.T) {
-	path, err := makeTmpFile()
+	path, err := makeTmpFile("./foo")
 	if err != nil {
 		t.Fatalf("makeTmpFile() error = %v", err)
 	}
@@ -152,7 +251,7 @@ func TestAtomicWriteReplacesContentsAndSetsExecutableBit(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "script.sh")
 
-	if err := os.WriteFile(target, []byte("old"), 0644); err != nil {
+	if err := os.WriteFile(target, []byte("old"), 0o644); err != nil {
 		t.Fatalf("seed file: %v", err)
 	}
 
@@ -165,6 +264,14 @@ func TestAtomicWriteReplacesContentsAndSetsExecutableBit(t *testing.T) {
 		t.Fatalf("read target: %v", err)
 	}
 	if string(data) != "new" {
-		t.Fatalf("file content = %q, want %q", string(data), "#!/bin/sh\\necho new")
+		t.Fatalf("file content = %q, want %q", string(data), "new")
+	}
+
+	info, err := os.Stat(target)
+	if err != nil {
+		t.Fatalf("stat target: %v", err)
+	}
+	if info.Mode()&0o100 == 0 {
+		t.Fatalf("expected owner executable bit to be set, mode = %v", info.Mode())
 	}
 }

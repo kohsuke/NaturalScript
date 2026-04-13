@@ -30,17 +30,20 @@ func run() (int, error) {
 
 	content, err := os.ReadFile(scriptPath)
 	if err != nil {
-		return 1, fmt.Errorf("read script: %w", err)
+		return 1, fmt.Errorf("failed to read script: %w", err)
 	}
 
-	script := Parse(string(content))
+	script, err := Parse(string(content))
+	if err != nil {
+		return 1, fmt.Errorf("failed to parse script: %w", err)
+	}
 
 	if script.ShouldRegenerate() {
 		fmt.Println("Triggering the agent to generate the script...")
 
-		outPath, err := makeTmpFile()
+		outPath, err := makeTmpFile(scriptPath)
 		if err != nil {
-			return 1, fmt.Errorf("create temporary output file: %w", err)
+			return 1, fmt.Errorf("can't create temporary output file: %w", err)
 		}
 		defer os.Remove(outPath)
 
@@ -64,25 +67,26 @@ func run() (int, error) {
 
 		serializedScript, err := Print(script)
 		if err != nil {
-			return 1, fmt.Errorf("serialize script: %w", err)
+			return 1, fmt.Errorf("failed to write script: %w", err)
 		}
 		if err := atomicWrite(scriptPath, serializedScript); err != nil {
-			return 1, fmt.Errorf("write script: %w", err)
+			return 1, fmt.Errorf("failed to write script: %w", err)
+		}
+		fmt.Printf("Updated %s\n", scriptPath)
+		return 0, nil
+	} else {
+		if err := Execute(script, args); err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				return exitErr.ExitCode(), nil
+			}
+			return 1, fmt.Errorf("run generated script: %w", err)
 		}
 		return 0, nil
 	}
-
-	if err := Execute(script, args); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return exitErr.ExitCode(), nil
-		}
-		return 1, fmt.Errorf("run generated script: %w", err)
-	}
-	return 0, nil
 }
 
-func makeTmpFile() (string, error) {
-	outFile, err := os.CreateTemp("", "naturalscript-output-*.txt")
+func makeTmpFile(scriptPath string) (string, error) {
+	outFile, err := os.CreateTemp(filepath.Dir(scriptPath), "naturalscript-output-*.txt")
 	if err != nil {
 		return "", err
 	}
@@ -94,8 +98,7 @@ func makeTmpFile() (string, error) {
 }
 
 func atomicWrite(scriptPath string, contents string) error {
-	scriptDir := filepath.Dir(scriptPath)
-	tmpFile, err := os.CreateTemp(scriptDir, "naturalscript-tmp-*.tmp")
+	tmpFile, err := os.CreateTemp(filepath.Dir(scriptPath), "naturalscript-tmp-*.tmp")
 	if err != nil {
 		return err
 	}
@@ -156,6 +159,8 @@ Ask me any clarifying questions, and execute the necessary commands directly.
 When we are done, please use that knowledge to write out the script to %s, so that
 the next time this same task can be performed without you. Unless I change my mind,
 assume a shell script.
+
+Important: include a shebang line at the top of the generated script.
 
 Then ask the user to exit the session.
 
