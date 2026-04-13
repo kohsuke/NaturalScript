@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -75,49 +74,24 @@ func run() (int, error) {
 		fmt.Printf("Updated %s\n", scriptPath)
 		return 0, nil
 	} else {
-		if err := Execute(script, args); err != nil {
+		// if the script path is just a bare name like 'foo', exec by default looks for PATH,
+		// but what we really want is ./foo
+		if !strings.Contains(scriptPath, "/") {
+			scriptPath = "./" + scriptPath
+		}
+
+		cmd := exec.Command(scriptPath, args...)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				return exitErr.ExitCode(), nil
 			}
-			return 1, fmt.Errorf("run generated script: %w", err)
+			return 1, fmt.Errorf("failed to run the script: %w", err)
 		}
 		return 0, nil
 	}
-}
-
-func makeTmpFile(scriptPath string) (string, error) {
-	outFile, err := os.CreateTemp(filepath.Dir(scriptPath), "naturalscript-output-*.txt")
-	if err != nil {
-		return "", err
-	}
-	outPath := outFile.Name()
-	if err := outFile.Close(); err != nil {
-		return "", err
-	}
-	return outPath, nil
-}
-
-func atomicWrite(scriptPath string, contents string) error {
-	tmpFile, err := os.CreateTemp(filepath.Dir(scriptPath), "naturalscript-tmp-*.tmp")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmpFile.Name()
-	defer os.Remove(tmpPath)
-
-	_, err = tmpFile.Write([]byte(contents))
-	if err != nil {
-		return err
-	}
-	err = tmpFile.Chmod(0755)
-	if err != nil {
-		return err
-	}
-	err = tmpFile.Close()
-	if err != nil {
-		return err
-	}
-	return os.Rename(tmpPath, scriptPath)
 }
 
 func prompt(script Script, outPath string, args []string) string {
