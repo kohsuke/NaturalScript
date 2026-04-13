@@ -42,7 +42,7 @@ COMMENTBLOCK_FOR_NATURALSCRIPT
 
 Now this generated script can be run without NaturalScript.
 
-To update the script, simply edit the captured prompt section,
+To update the script, simply edit the marked prompt section in this file,
 and re-run `naturalscript`. The agent will now try to apply the delta
 between the old and new prompts into the current script.
 
@@ -50,8 +50,8 @@ between the old and new prompts into the current script.
 
 # Install
 
-Download the archive for your platform from the repository's
-**Releases** page, then place `naturalscript` on your `PATH`.
+[Download the archive for your platform](https://github.com/kohsuke/NaturalScript/releases),
+then place `naturalscript` on your `PATH`.
 
 Alternatively:
 
