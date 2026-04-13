@@ -134,7 +134,7 @@ I'd like you to produce a revised script that reflects this change.
 
 	prompt += fmt.Sprintf(`
 In order to produce the correct script, first I'd like you to be the interpreter.
-Ask me any clarifying questions, and execute the necessary commands directly.
+Assume reasonable defaults, but ask me clarifying questions, and execute the necessary commands directly.
 
 When we are done, please use that knowledge to write out the script to %s, so that
 the next time this same task can be performed without you. Unless I change my mind,
