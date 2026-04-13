@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"naturalscript/agents"
+
+	"github.com/manifoldco/promptui"
 )
 
 func main() {
@@ -47,7 +49,10 @@ func run() (int, error) {
 		os.Remove(outPath)       // if a file exists, agent needs to read it first
 		defer os.Remove(outPath) // delete the file the agent will create, too
 
-		a := selectAgent()
+		a, err := selectAgent()
+		if err != nil {
+			return 1, err
+		}
 		fullPrompt := prompt(script, outPath, args)
 		if err := a.Run(fullPrompt); err != nil {
 			return 1, fmt.Errorf("agent error: %w", err)
@@ -153,17 +158,23 @@ func formatArguments(args []string) string {
 	return "[" + strings.Join(quoted, ", ") + "]"
 }
 
-func selectAgent() agents.Agent {
-	selectedAgent := os.Getenv("NATURALSCRIPT_AGENT")
-	if selectedAgent == "" {
-		selectedAgent = os.Getenv("GENSCRIPT_AGENT")
+func selectAgent() (agents.Agent, error) {
+	prompt := promptui.Select{
+		Label: "Select agent to generate the script with",
+		Items: []string{"OpenCode", "Claude Code"},
 	}
-	switch selectedAgent {
-	case "opencode":
-		return agents.NewOpenCodeAgent()
-	case "claude":
-		return agents.NewClaudeAgent()
+
+	_, result, err := prompt.Run()
+
+	if err != nil {
+		return nil, fmt.Errorf("no agent selected")
+	}
+	switch result {
+	case "OpenCode":
+		return agents.NewOpenCodeAgent(), nil
+	case "Claude Code":
+		return agents.NewClaudeAgent(), nil
 	default:
-		return agents.NewOpenCodeAgent()
+		panic(result)
 	}
 }
