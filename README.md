@@ -1,5 +1,7 @@
 # NaturalScript
 
+→ [日本語版](./README.ja.md)
+
 I find it off-putting when people generate scripts with LLMs and commit
 the results to Git repositories. Those scripts are verbose and hard to maintain.
 It's like committing a binary file without the actual source code.
